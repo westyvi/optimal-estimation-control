@@ -1,0 +1,15 @@
+Explanation of continuous algebraic ricatti equation (CARE) for infinite horizon:
+
+LQR optimizes a cost function J. This cost function can be manipulated by inserting a (x.T @ P @ x) - (x.T @ P @ x) term. Manipulating the negative term results in an expanded version of it inside of the cost function integral from zero to infinity. Further manipulation results allows insertion of the state equation (xdot = Ax + Bu) into the xQx term and factorization of the u-terms via completing the square. At this point, the total cost is J = x0.T @ P @ x0 + integral0inf(x terms + u terms)dt. One can set the u term to 0 by setting u = -(inv(R) @ B.T @ P)x. One can also set the x-dependent term to zero by solving for P such that the x term (A.T @ P + P @ A + Q - P@B@inv(R)@B.T@P) = 0. Solving this equation for P, then subbing P into the equation for u, results in the entire cost integral from time zero to infinity going to zero. Thus, the total cost is just the term (x0.T @ P @ x0) outside of the integral, and the cost is minimized. The x-term equation is the CARE, and solving it for P results in the optimal LQR.
+
+source:  Brian Douglas, https://www.youtube.com/watch?v=ZktL3YjTbB4&ab_channel=MATLAB
+
+***** 
+DARE for infinite horizon: 
+
+Same corollary as above, but solved for discrete time. One solves the DARE for P, substitutes in for x, and has optimized the control law for the LQR problem. 
+
+***** ***** 
+Finite horizon LQR problem explanation:
+
+

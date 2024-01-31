@@ -16,7 +16,7 @@ Contents:
         > infinite-horizon discrete LQR
     - commentary 
     
-All calculations done in hill frame of target spacecraft. 
+All calculations done in Hill frame of target spacecraft. 
 
 Written by Joey Westermeyer 2024
 
@@ -26,6 +26,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp as ode45
 import scipy
+from types import SimpleNamespace
 
 # initialize constants
 mu = 3.986004418E14 # earth, m3/s2
@@ -109,18 +110,8 @@ Q3 = np.eye(6)
 R3 = 10000*np.eye(3)* AssignmentGaveUsTheWrongScaleFactor
 Qs = [Q1, Q2, Q3]
 Rs = [R1, R2, R3]
-
-# define plot function to be used for each LQR design
-def getControlHistory(states, K):
-    # states is a 6xn matrix of the 6x1 state at n timesteps
-    # K is the matrix feedback gain
-    # return a 3xn matrix of 3x1 control vectors at n timesteps
-    u = np.zeros((K.shape[0], states.shape[1]))
-    for i in range(states.shape[1]):
-        u[:,i] = -K @ states[:,i]
-    return u
     
-def plot(sol, designString, Ks):
+def plot(sol, designString):
     
     fig, ax = plt.subplots()
     ax.plot(sol[0].y[0,:], sol[0].y[1,:], 'b', label='case 1')
@@ -140,30 +131,26 @@ def plot(sol, designString, Ks):
     ax.legend()
     plt.grid(True)
     
-    
     fig, (ax1, ax2, ax3) = plt.subplots(3,1)
     fig.suptitle('control input vs time, ' + designString)
-    u1 = getControlHistory(sol[0].y, Ks[0])
-    u2 = getControlHistory(sol[1].y, Ks[1])
-    u3 = getControlHistory(sol[2].y, Ks[2])
     ax1.grid(True)
     ax2.grid(True)
     ax3.grid(True)
     
-    ax1.plot(sol[0].t, u1[0,:], 'b', label='case 1')
-    ax1.plot(sol[1].t, u2[0,:], 'r', label='case 2')
-    ax1.plot(sol[2].t, u3[0,:], 'g', label='case 3')
+    ax1.plot(sol[0].t, sol[0].u[0,:], 'b', label='case 1')
+    ax1.plot(sol[1].t, sol[1].u[0,:], 'r', label='case 2')
+    ax1.plot(sol[2].t, sol[2].u[0,:], 'g', label='case 3')
     ax1.set(xlabel = 't, s', ylabel = 'U_x, m/s2')
     
-    ax2.plot(sol[0].t, u1[1,:], 'b', label='case 1')
-    ax2.plot(sol[1].t, u2[1,:], 'r', label='case 2')
-    ax2.plot(sol[2].t, u3[1,:], 'g', label='case 3')
+    ax2.plot(sol[0].t, sol[0].u[1,:], 'b', label='case 1')
+    ax2.plot(sol[1].t, sol[1].u[1,:], 'r', label='case 2')
+    ax2.plot(sol[2].t, sol[2].u[1,:], 'g', label='case 3')
     ax2.set(xlabel = 't, s', ylabel = 'U_y, m/s2')
     ax2.legend()
     
-    ax3.plot(sol[0].t, u1[2,:], 'b', label='case 1')
-    ax3.plot(sol[1].t, u2[2,:], 'r', label='case 2')
-    ax3.plot(sol[2].t, u3[2,:], 'g', label='case 3')
+    ax3.plot(sol[0].t, sol[0].u[2,:], 'b', label='case 1')
+    ax3.plot(sol[1].t, sol[1].u[2,:], 'r', label='case 2')
+    ax3.plot(sol[2].t, sol[2].u[2,:], 'g', label='case 3')
     ax3.set(xlabel = 't, s', ylabel = 'U_z, m/s2')
 
     
@@ -176,16 +163,19 @@ def continous_Riccati(t, P):
 Pf = np.zeros((6,6))
 
 sol = []
+numpts = 100
 for i in range(3):
     R = Rs[i]
     Q = Qs[i]
-    sol.append(ode45(continous_Riccati, [16400, 0], Pf.flatten(),
-                   t_eval=np.linspace (16400, 0, 100)))
+    Ps = ode45(continous_Riccati, [16400, 0], Pf.flatten(),
+                   t_eval=np.linspace (16400, 0, numpts))
+    Ks = np.linalg.inv(R) @ B.T @ Ps.y.reshape((6,6,numpts))
+    
 
 
 # %% infinite-horizon, continous time LQR
 
-sol = []
+sols = []
 Ks = []
 # loop through cases
 for i in range(3):
@@ -197,14 +187,88 @@ for i in range(3):
     K = np.linalg.inv(R) @ B.T @ P
     Ks.append(K)
     
-    # simulate system, log output
+    # simulate system
     sys_CL = lambda t, x: (A - B @ K) @ x
-    sol.append(ode45(sys_CL, [0, 16400], x0, t_eval=np.linspace(0,16400, 10000)) )
-
-plot(sol, 'infinite horizon continuous LQR', Ks)
-
-
+    sol = ode45(sys_CL, [0, 16400], x0, t_eval=np.linspace(0,16400, 10000))
     
+    # recover control history 
+    u = np.zeros((K.shape[0], sol.y.shape[1]))
+    for i in range(sol.y.shape[1]):
+        u[:,i] = -K @ sol.y[:,i]
+        
+    # output simulation and control history
+    sol.u = u
+    sols.append(sol)
+
+plot(sols, 'infinite horizon continuous LQR')
+
+# %% finite-horizon, discrete time LQR
+ 
+sols = []
+numpts = 1500
+dt = 1
+for i in range(3):
+    Ps = np.zeros((6,6,numpts))
+    K_history = np.zeros((6,6,numpts))
+    u_history = np.zeros((3,numpts+1)) # last value will be left zero, but need it there to match length with x
+    x_history = np.zeros((6,numpts+1))
+    x_history[:,0] = x0
+    t_history = np.zeros(numpts+1)
+    
+    R = Rs[i]
+    Q = Qs[i]
+    
+    for j in range (numpts):
+        P = Ps[:,:,numpts-j-1]
+        Ps[:,:,numpts-j-2] = F.T @ P @ F + Q - (F.T @ P @ G) @ np.linalg.inv(G.T @ P @ G + R) @ (G.T @ P @ F)
+        # Ps runs from k=1 to k=N (so this indexing is shifted off the 'physical'/mathematical indexing by one)
+    
+    # solve for K, simulate system, log output
+    for j in range (numpts):
+        t_history[j+1] = t_history[j] + dt
+        P = Ps[:,:,j] # want P[k+1] to calculate K[k], and Ps are 1 index ahead of Ks, so use same index j
+        K  = np.linalg.inv(G.T @ P @ G + R) @ G.T @ P @ F
+        u_history[:,j] = -K @ x_history[:,j]
+        x_history[:,j+1] = (F - G @ K) @ x_history[:,j]
+    
+    # convert solution to format output by ode solver for homogenity
+    soldict = {'y':x_history, 'u': u_history, 't':t_history}
+    sol = SimpleNamespace(**soldict)
+    sols.append(sol)
+    
+plot(sols, 'finite horizon discrete LQR')
+
+# %% infinite-horizon, continous time LQR
+
+sols = []
+# loop through cases
+for i in range(3):
+    # initialize results matrices
+    u_history = np.zeros((3,numpts+1)) # last value will be left zero, but need it there to match length with x
+    x_history = np.zeros((6,numpts+1))
+    x_history[:,0] = x0
+    t_history = np.zeros(numpts+1)
+    
+    # solve for cost to go matrix P and optimal gain K
+    R = Rs[i]
+    Q = Qs[i]
+    P = scipy.linalg.solve_discrete_are(F,G,Q,R)
+    K = np.linalg.inv(G.T @ P @ G + R) @ G.T @ P @ F
+    
+    # solve for K, simulate system, log output
+    for j in range (numpts):
+        t_history[j+1] = t_history[j] + dt
+        u_history[:,j] = -K @ x_history[:,j]
+        x_history[:,j+1] = (F - G @ K) @ x_history[:,j]
+    
+    # convert solution to format output by ode solver for homogenity
+    soldict = {'y':x_history, 'u': u_history, 't':t_history}
+    sol = SimpleNamespace(**soldict)
+    sols.append(sol)
+    
+plot(sols, 'infinite horizon discrete LQR')
+
+        
     
 
 

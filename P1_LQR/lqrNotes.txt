@@ -12,4 +12,12 @@ Same corollary as above, but solved for discrete time. One solves the DARE for P
 ***** ***** 
 Finite horizon LQR problem explanation:
 
+The cost-to-go can be described by x.T @ P @ x. It follows that the optimal control
+minimizes the subsequent cost to go plus the control effort to get to the subsequent 
+state. In this way, the problem can be solved by starting at the final state and solving the
+Ricatti ODE for the cost to go matrix P backwards in time for all time. Then, since
+the optimal control input is defined by P, one can then substitute the P matrices 
+through time into the control equation to get the optimal control time-history 
+for the problem. 
+
 

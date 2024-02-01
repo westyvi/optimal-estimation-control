@@ -162,15 +162,38 @@ def continous_Riccati(t, P):
            
 Pf = np.zeros((6,6))
 
-sol = []
+sols = []
 numpts = 100
 for i in range(3):
     R = Rs[i]
     Q = Qs[i]
     Ps = ode45(continous_Riccati, [16400, 0], Pf.flatten(),
-                   t_eval=np.linspace (16400, 0, numpts))
-    Ks = np.linalg.inv(R) @ B.T @ Ps.y.reshape((6,6,numpts))
+                   t_eval=np.linspace (16400, 0, numpts)) # returns Ps in array of time from t_N -> t_0
     
+    # there is definitely a better way to do this with numpy matrix commands
+    Ks = np.zeros((3,6,numpts))
+    Ksflat = np.zeros((18,numpts))
+    for j in range (numpts):
+        Ks[:,:,j] = np.linalg.inv(R) @ B.T @ Ps.y[:,numpts-j-1].reshape(6,6)
+        Ksflat[:,j] = Ks[:,:,j].flatten()
+    
+    # simulate system
+    interpK = scipy.interpolate.interp1d(Ps.t, Ksflat)
+    sys_CL = lambda t, x: (A - B @ interpK(t).reshape(3,6)) @ x
+    
+    sol = ode45(sys_CL, [0, 16400], x0, t_eval=np.linspace(0,16400, 10000))
+    
+    # recover control history 
+    u = np.zeros((3, sol.y.shape[1]))
+    for i in range(sol.y.shape[1]):
+        u[:,i] = -interpK(sol.t[i]).reshape(3,6) @ sol.y[:,i]
+        
+    # output simulation and control history
+    sol.u = u
+    sols.append(sol)
+    
+plot(sols, 'finite horizon continuous LQR')
+
 
 
 # %% infinite-horizon, continous time LQR

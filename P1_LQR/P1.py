@@ -20,6 +20,13 @@ All calculations done in Hill frame of target spacecraft.
 
 Written by Joey Westermeyer 2024
 
+notes:
+    Want to make a better plotting function. More DRY. 
+        Potentially convert it to accept a dict instead of simple namespace for more general solutions
+    Want to examine using e^At as the discretized matrix instead of the given derivation
+    Want to examine how K changes over time for finite vs infinite horizons
+    Want to examine response to sensor & process noise
+    Want to examine eLQR with nonlinear dynamics equation
 """
 
 import numpy as np
@@ -101,7 +108,7 @@ print('^discrete eigenvalue absolute values. All magnitudes are equal to '+\
 
 
 # setup cases 1, 2, and 3 for Q and R matrix design
-AssignmentGaveUsTheWrongScaleFactor = 1E9
+AssignmentGaveUsTheWrongScaleFactor = 1E3
 Q1 = np.eye(6)
 R1 = np.eye(3)*AssignmentGaveUsTheWrongScaleFactor
 Q2 = np.eye(6)
@@ -110,6 +117,9 @@ Q3 = np.eye(6)
 R3 = 10000*np.eye(3)* AssignmentGaveUsTheWrongScaleFactor
 Qs = [Q1, Q2, Q3]
 Rs = [R1, R2, R3]
+simTime = 400 # s
+numpts = 1500 # number of evaluation points for continuous time, number of time steps for discrete time
+
     
 def plot(sol, designString):
     
@@ -163,12 +173,11 @@ def continous_Riccati(t, P):
 Pf = np.zeros((6,6))
 
 sols = []
-numpts = 100
 for i in range(3):
     R = Rs[i]
     Q = Qs[i]
-    Ps = ode45(continous_Riccati, [16400, 0], Pf.flatten(),
-                   t_eval=np.linspace (16400, 0, numpts)) # returns Ps in array of time from t_N -> t_0
+    Ps = ode45(continous_Riccati, [simTime, 0], Pf.flatten(),
+                   t_eval=np.linspace (simTime, 0, numpts)) # returns Ps in array of time from t_N -> t_0
     
     # there is definitely a better way to do this with numpy matrix commands
     Ks = np.zeros((3,6,numpts))
@@ -181,7 +190,7 @@ for i in range(3):
     interpK = scipy.interpolate.interp1d(Ps.t, Ksflat)
     sys_CL = lambda t, x: (A - B @ interpK(t).reshape(3,6)) @ x
     
-    sol = ode45(sys_CL, [0, 16400], x0, t_eval=np.linspace(0,16400, 10000))
+    sol = ode45(sys_CL, [0, simTime], x0, t_eval=np.linspace(0,simTime, numpts))
     
     # recover control history 
     u = np.zeros((3, sol.y.shape[1]))
@@ -193,7 +202,6 @@ for i in range(3):
     sols.append(sol)
     
 plot(sols, 'finite horizon continuous LQR')
-
 
 
 # %% infinite-horizon, continous time LQR
@@ -212,7 +220,7 @@ for i in range(3):
     
     # simulate system
     sys_CL = lambda t, x: (A - B @ K) @ x
-    sol = ode45(sys_CL, [0, 16400], x0, t_eval=np.linspace(0,16400, 10000))
+    sol = ode45(sys_CL, [0, simTime], x0, t_eval=np.linspace(0,simTime, numpts))
     
     # recover control history 
     u = np.zeros((K.shape[0], sol.y.shape[1]))
@@ -228,8 +236,7 @@ plot(sols, 'infinite horizon continuous LQR')
 # %% finite-horizon, discrete time LQR
  
 sols = []
-numpts = 1500
-dt = 1
+dt = simTime/numpts
 for i in range(3):
     Ps = np.zeros((6,6,numpts))
     K_history = np.zeros((6,6,numpts))

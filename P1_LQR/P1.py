@@ -41,6 +41,11 @@ rt = 6783000 # target spacecraft altitude (assumed constant), m
 x0 = np.array([1000,1000,1000, 0, 0, 0]) # initial chaser state
 nt = np.sqrt(mu/rt**3)
 
+# intialize simulation parameters
+simTime = 400 # s
+numpts = 1500 # number of evaluation points for continuous time, number of time steps for discrete time
+dt = simTime/numpts
+
 # continous time state space. Dynamics use CW-equations (Hill equations) in target's hill frame
 A = np.zeros((6,6))
 A[0:3,3:6] = np.eye(3)
@@ -52,7 +57,6 @@ A[3,4] = 2*nt
 B = np.block([[np.zeros((3,3))], [np.eye(3)]])
 
 # discrete time state space. Derived from continous time state space CW equations
-dt = 1
 F = np.zeros((6,6))
 F[0:3,0:3] = [[4-3*np.cos(nt*dt), 0, 0],
               [6*(np.sin(nt*dt) - nt*dt), 1, 0],
@@ -70,16 +74,18 @@ F[3:6,3:6] = [[np.cos(nt*dt), 2*np.sin(nt*dt), 0],
               [-2*np.sin(dt*nt), 4*np.cos(nt*dt) - 3, 0],
               [0, 0, np.cos(nt*dt)]
               ]
+F = scipy.linalg.expm(A*dt) # FIXME this overwrites the above derivation
 
 G = np.zeros((6,3))
 G[0:2,0:2] = [[nt**-2*(1-np.cos(nt*dt)), 2*nt**-2*(nt*dt - np.sin(nt*dt))],
-              [-2*nt**-2*(nt*dt - np.sin(nt*dt)), 4*nt**-2*(1-np.cos(nt*dt)) - dt**2*3/2]
+              [-2*nt**-2*(nt*dt - np.sin(nt*dt)), 4*nt**-2*(1-np.cos(nt*dt)) - (dt**2)*3/2]
               ]
 G[2,2] = nt**-2*(1-np.cos(nt*dt))
 G[3:5,0:2] = [[nt**-1*np.sin(nt*dt), 2*nt**-1*(1-np.cos(nt*dt))],
-              [-2*nt**-1*(1-np.cos(nt*dt)), 4*nt**-1*np.sin(dt*dt) - 3*dt]
+              [-2*nt**-1*(1-np.cos(nt*dt)), 4*nt**-1*np.sin(nt*dt) - 3*dt]
               ]
 G[5,2] = nt**-1*np.sin(nt*dt)
+
 
 # Compute the eigenvalues of the state matrix for the continuous-time LTI 
 # system and comment on the stability of the system
@@ -117,8 +123,6 @@ Q3 = np.eye(6)
 R3 = 10000*np.eye(3)* AssignmentGaveUsTheWrongScaleFactor
 Qs = [Q1, Q2, Q3]
 Rs = [R1, R2, R3]
-simTime = 400 # s
-numpts = 1500 # number of evaluation points for continuous time, number of time steps for discrete time
 
     
 def plot(sol, designString):
@@ -236,7 +240,6 @@ plot(sols, 'infinite horizon continuous LQR')
 # %% finite-horizon, discrete time LQR
  
 sols = []
-dt = simTime/numpts
 for i in range(3):
     Ps = np.zeros((6,6,numpts))
     K_history = np.zeros((6,6,numpts))

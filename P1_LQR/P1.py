@@ -14,13 +14,13 @@ Contents:
         > infinite-horizon, continous LQR
         > finite-horizon, discrete LQR
         > infinite-horizon discrete LQR
-    - commentary 
     
 All calculations done in Hill frame of target spacecraft. 
 
 Written by Joey Westermeyer 2024
 
 notes:
+    Want to investigate continuous finite horizon implementation because it has different results from others
     Want to make a better plotting function. More DRY. 
         Potentially convert it to accept a dict instead of simple namespace for more general solutions
     Want to examine using e^At as the discretized matrix instead of the given derivation

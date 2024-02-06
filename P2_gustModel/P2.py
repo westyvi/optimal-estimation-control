@@ -110,5 +110,10 @@ for sim_case in sim_runs:
               title = xyz_string_list[i] + ' gust vs time')
         ax.legend()
         ax.grid(True)
-   
+
+    fig, ax = plt.subplots()
+    ax.plot(sim_runs[sim_case]['uvw_gust'][1,:], sim_runs[sim_case]['uvw_gust'][2,:], 'b')
+    ax.set(xlabel = 't, s', ylabel = 'v, ft/s',
+          title = 'y vs z gust velocities, ' + sim_case + ' (see commentary)')
+    ax.grid(True)
 

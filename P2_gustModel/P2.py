@@ -102,7 +102,7 @@ axes = [ax1, ax2, ax3]
 xyz_string_list = ['x', 'y', 'z']
 
 # loop through each simulation case 
-for sim_case in sim_runs:
+for sim_case in reversed(sim_runs):
     # loop through each data set (vx, vy, and vz)
     for i, ax in enumerate(axes):
         ax.plot(t, sim_runs[sim_case]['uvw_gust'][i,:], sim_runs[sim_case]['color'], label=sim_case)

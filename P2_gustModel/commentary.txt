@@ -1,22 +1,23 @@
 As expected, the Dryden gust model with severe turbulence has much larger fluctuations
-and maximum gust velocities compared to light, and the moderate case has fluctation and
-absolute magnitudes between the two. 
-
-**insert comment on second vs first order markov model**
+and maximum gust velocities compared to light turbulence, and the moderate case has fluctation and
+absolute magnitudes between the two. From roughly inspecting the plots, the values 
+of gust roughly match with their corresponding rms values given, and the model 
+appears to do a good job simulating randomness in gust values while damping back
+to zero, as is expected of wind in the real world. 
 
 It is also interesting to note that the y- and z- direction gust velocities are 
 equivalent in each case. This can also be seen by inspection of the markov model state
-space given in the Dryden gust model, which reduces to equivalent, uncoupled sub- state
+space given in the Dryden gust model, which reduces to equivalent, uncoupled sub-state
 spaces for the v and w gust velocities if rms_v == rms_w and L_v == L_w, which is 
 true for this project and for the Dryden gust model, respectively. These equivalent sub-
 state spaces are driven by the same random noise n(t), 
 so it follows that their states evolve equivalently for this simulation. This implies that
-every gust is directed along a 45 or 225 degree angle in the y-z plane, which seems 
-inaccurate. This is shown in this project by the supplemental y vs z gust velocity plots. 
+every gust is directed along a 45 or 225 degree angle in the y-z plane. 
+This is shown in this project by the supplemental y vs z gust velocity plots. 
 
 Running the simulations with different rms_gust_y != rms_gust_z maintains the 
 equivalent shape of the vy-vz plots, only scaling them proportionally. This implies that the
-Dryden gust model can only produce gusts lying along a specific line in the y-z plane
+Dryden gust model can only produce gusts lying along a line in the y-z plane
 for any set of constant gust rms values. This seems like a shortcoming in the gust model,
 as real gusts can manifest in any direction. Simulating only gusts along a specific y-z line
 could fail to reveal the impact truly random gusts have on a simulated vehicle, which 
@@ -28,3 +29,5 @@ ensures a simulated vehicle will experience maximum side and vertical gusts
 simultaneously, which could be a worst-case scenario for the vehicle compared 
 to experiencing a maximum-simulated gust velocity in only one direction. In any case,
 a simulation designer would want to be mindful of this characteristic of the Dryden gust model. 
+If desired, making the driving noise a random vector instead of a random scalar, 
+then transforming B to a diagonal matrix could address this coupling. 

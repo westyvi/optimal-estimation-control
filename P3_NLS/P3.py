@@ -46,12 +46,29 @@ def load_data_from_csv(file_path):
             # Convert voltage and current strings to floats
             voltages.append(float(voltage_str))
             currents.append(float(current_str))
+            
+        # Convert lists to NumPy arrays
+        times = np.array(times)
+        voltages = np.array(voltages)
+        currents = np.array(currents)
 
     return times, voltages, currents
 
-# Example usage:
+# load data in to arrays
 times, voltages, currents = load_data_from_csv('./pulse_discharge_test_data.csv')
 
+# Integrate current to get state of charge (SOC); assume SOC[0] = 0
+SOC = np.copy(times)
+SOC[0] = 0
+time_step = times[1]-times[0]
+SOC = np.cumsum(currents) * -time_step # in joules
+
+# Assuming you have arrays 'times' and 'state_of_charge'
+fig, ax = plt.subplots()
+ax.plot(times, SOC)
+ax.set(xlabel = 'Time, s', ylabel = 'State of Charge, J',
+      title = 'State of Charge vs Time')
+ax.grid(True)
 
 '''# %%plot results
 t = np.linspace(0, simTime, numpts)

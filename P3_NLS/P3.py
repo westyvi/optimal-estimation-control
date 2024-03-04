@@ -25,7 +25,7 @@ import scipy
 import pandas
 import csv
 
-def load_data_from_csv(file_path):
+def load_pulse_test_data(file_path):
     times = []
     voltages = []
     currents = []
@@ -62,7 +62,7 @@ def load_data_from_csv(file_path):
     return times, voltages, currents
 
 # load data in to arrays
-times, voltages, currents = load_data_from_csv('./pulse_discharge_test_data.csv')
+times, voltages, currents = load_pulse_test_data('./pulse_discharge_test_data.csv')
 times -= times[0]
 
 # Integrate current to get state of charge (Q); assume Q[0] = 0
@@ -87,37 +87,116 @@ start = 0
 end = 0
 i = 0
 while i < currents.size:
-    # if found the start of a rest period
     if currents[i] < amp_threshold:
-        start = i
+        start = i-1 # want to include last discharge data point
         for end in range(i,currents.size):
             if currents[end] > amp_threshold:
                 break
         i = end
-        rest_period.append(currents[start:end])
+        rest_period.append({'current':currents[start:end], 'voltage':voltages[start:end], 'time':times[start:end]})
     i += 1
-            
+del rest_period[0] # first rest period isn't a voltage recovery period; it is pre test-start
+
+# calculate optimal battery parameters for each rest period using nonlinear least squares
+num_exponentials = 3 # number of RC exponential terms to approximate
+for period in rest_period:
+    sol = []
+    cost = []
+    residual = []
+    for n in range(1,num_exponentials+1):
+        i_dis = period['current'][0]
+        R0 = (period['voltage'][1] - period['voltage'][0])/i_dis
+        OCV_estimate = period['voltage'][-1]
+        R1_estimate = 0.95*(OCV_estimate - period['voltage'][1])/i_dis
+        tau_estimate = np.argmax(period['voltage'] >= 0.95*(OCV_estimate - period['voltage'][1]) + period['voltage'][1])
+        x0 = np.array([OCV_estimate, R1_estimate, tau_estimate])
+        x0 = np.append(x0, np.ones(2*(n-1)))
+        
+        def fun(x,t):
+            res = x[0]
+            for i in range (0,n):
+                if x[2+2*i]==0:
+                    continue
+                res -= i_dis*x[1+2*i]*np.exp(-t/x[2+2*i])
+            return res
+        
+        def residual_fun(x, t, V):
+            return fun(x,t) - V
+        
+        # compute optimal parameters using nonlinear least squares
+        result = (scipy.optimize.least_squares(residual_fun, x0, loss='soft_l1',args=(period['time'][1:]-period['time'][1], period['voltage'][1:])) )
+        # ^cut pre-recovery period data point
+        # insert calculated R0 parameter to solution parameter list
+        sol.append(np.insert(result.x, 1, R0))
+        cost.append(result.cost*2) # scipy calculates cost function as 0.5*residual**2
+        
+        # plot data and fit for this rest period
+        '''fig, ax = plt.subplots()
+        ax.plot(period['time'][1:], period['voltage'][1:],label='data')
+        ax.plot(period['time'][1:], fun(result.x,period['time'][1:]-period['time'][1]), label='fit')
+        ax.legend()'''
+        
+        residual_error = np.sum((fun(result.x,period['time'][1:-1]-period['time'][1]) - period['voltage'][1:-1])**2)/2
+        residual.append(residual_error)
+        
+    period['optimal_params'] = sol
+    period['residuals'] = np.array(residual)
+    period['cost'] = cost
 
 
-
-
-
-
-
-
-
-# cracked multi case plotting function if you want to use it
-'''# %%plot results
-t = np.linspace(0, simTime, numpts)
-fig1, ax1 = plt.subplots()
-fig2, ax2 = plt.subplots()
-fig3, ax3 = plt.subplots()
+# %%plot results
+fig1, ax1 = plt.subplots() # residuals plot
+fig2, ax2 = plt.subplots() # parameters plot
+fig3, ax3 = plt.subplots() # OCV-SOC plot
 figs = [fig1, fig2, fig3]
 axes = [ax1, ax2, ax3]
-xyz_string_list = ['x', 'y', 'z']
+xyz_string_list = ['1', '2', '3']
 
+# pull data from each period for plotting
+residuals = np.zeros((len(rest_period), num_exponentials))
+OCV = residuals.copy()
+R1 = residuals.copy()
+T1 = residuals.copy()
+T2 = np.zeros((len(rest_period), num_exponentials-1))
+R2 = T2.copy()
+T3 = np.zeros((len(rest_period), num_exponentials-2))
+R3 = T3.copy()
+R0 = np.array([period_data['optimal_params'][0][1] for period_data in rest_period])
+sub_times = np.array([period_data['time'][1] for period_data in rest_period])
+time_indices = np.where(np.isin(times, sub_times))
+SOCs = SOC[time_indices]
+for i in range(0,num_exponentials):
+    residuals[:,i] = np.array([period_data['residuals'][i] for period_data in rest_period])
+    OCV[:,i] = np.array([period_data['optimal_params'][i][0] for period_data in rest_period])
+    R1[:,i] = np.array([period_data['optimal_params'][i][2] for period_data in rest_period])
+    T1[:,i] = np.array([period_data['optimal_params'][i][3] for period_data in rest_period])
+    if i > 0:
+        i -= 1
+        R2[:,i] = np.array([period_data['optimal_params'][i][2] for period_data in rest_period])
+        T2[:,i] = np.array([period_data['optimal_params'][i][3] for period_data in rest_period])
+    if i > 1:
+        i -= 1
+        R3[:,i] = np.array([period_data['optimal_params'][i][2] for period_data in rest_period])
+        T3[:,i] = np.array([period_data['optimal_params'][i][3] for period_data in rest_period])
+
+
+for i in range(0, num_exponentials):
+    # residuals
+    ax1.plot(SOCs, residuals[:,i], label='RC model with ' + xyz_string_list[i] + ' exponential terms')
+    ax1.set(xlabel = 'SOC, %', ylabel = 'residuals, volts^2', title = 'residuals vs SOC')
+    ax1.legend()
+    ax1.grid(True)
+    
+    # SOC-OCV
+    ax2.plot(SOCs, OCV[:,i], label='RC model with ' + xyz_string_list[i] + ' exponential terms')
+    ax2.set(xlabel = 'SOC, %', ylabel = 'OCV, volts', title = 'SOC-OCV curve')
+    ax2.legend()
+    ax2.grid(True)
+    
+
+'''
 # loop through each simulation case 
-for sim_case in reversed(sim_runs):
+for period in (rest_period):
     # loop through each data set (vx, vy, and vz)
     for i, ax in enumerate(axes):
         ax.plot(t, sim_runs[sim_case]['uvw_gust'][i,:], sim_runs[sim_case]['color'], label=sim_case)

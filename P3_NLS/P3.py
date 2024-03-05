@@ -7,10 +7,6 @@ Project 3:
     
     Nonlinear Least Squares Battery Parameter Estimation 
 
-Contents:
-    - 
-    - Plot results
-    
 Commentary and initial assignment contained in project folder
     
 Written by Joey Westermeyer 2024

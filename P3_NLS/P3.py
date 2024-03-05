@@ -73,13 +73,6 @@ Q = np.cumsum(currents) * - time_step # in joules
 Q -= Q[-1] # find total charge assuming ending Q=0
 SOC = Q/Q[0] # define SOC assuming Q[0] corresponds to 100% SOC
 
-# plot Q vs time
-fig, ax = plt.subplots()
-ax.plot(times, SOC*100)
-ax.set(xlabel = 'Time, s', ylabel = 'State of Charge, percent',
-      title = 'State of Charge vs Time')
-ax.grid(True)
-
 # break up discharge data into rest periods
 rest_period = []
 amp_threshold = 0.1 # determines whether in a rest period or not
@@ -124,8 +117,14 @@ for period in rest_period:
             return fun(x,t) - V
         
         # compute optimal parameters using nonlinear least squares
-        result = (scipy.optimize.least_squares(residual_fun, x0, loss='soft_l1',args=(period['time'][1:]-period['time'][1], period['voltage'][1:])) )
-        # ^cut pre-recovery period data point
+        result = scipy.optimize.least_squares(
+            residual_fun, 
+            x0, 
+            loss='soft_l1',
+            bounds = (x0*0, np.inf), # restrict all parameters to positive or zero values
+            args=(period['time'][1:]-period['time'][1], period['voltage'][1:]), # cut pre-recovery [0] period data point
+            )
+        
         # insert calculated R0 parameter to solution parameter list
         sol.append(np.insert(result.x, 1, R0))
         cost.append(result.cost*2) # scipy calculates cost function as 0.5*residual**2
@@ -145,9 +144,14 @@ for period in rest_period:
 
 
 # %%plot results
-fig1, ax1 = plt.subplots() # residuals plot
-fig2, ax2 = plt.subplots() # parameters plot
-fig3, ax3 = plt.subplots() # OCV-SOC plot
+fig1, ax1 = plt.subplots() 
+fig2, ax2 = plt.subplots() 
+fig3, ax3 = plt.subplots()
+fig4, ax4 = plt.subplots()
+fig5, ax5 = plt.subplots()
+ax3R = ax3.twinx()
+ax4R = ax4.twinx()
+ax5R = ax5.twinx()
 figs = [fig1, fig2, fig3]
 axes = [ax1, ax2, ax3]
 xyz_string_list = ['1', '2', '3']
@@ -171,15 +175,13 @@ for i in range(0,num_exponentials):
     R1[:,i] = np.array([period_data['optimal_params'][i][2] for period_data in rest_period])
     T1[:,i] = np.array([period_data['optimal_params'][i][3] for period_data in rest_period])
     if i > 0:
-        i -= 1
-        R2[:,i] = np.array([period_data['optimal_params'][i][2] for period_data in rest_period])
-        T2[:,i] = np.array([period_data['optimal_params'][i][3] for period_data in rest_period])
+        R2[:,i-1] = np.array([period_data['optimal_params'][i][4] for period_data in rest_period])
+        T2[:,i-1] = np.array([period_data['optimal_params'][i][5] for period_data in rest_period])
     if i > 1:
-        i -= 1
-        R3[:,i] = np.array([period_data['optimal_params'][i][2] for period_data in rest_period])
-        T3[:,i] = np.array([period_data['optimal_params'][i][3] for period_data in rest_period])
+        R3[:,i-2] = np.array([period_data['optimal_params'][i][6] for period_data in rest_period])
+        T3[:,i-2] = np.array([period_data['optimal_params'][i][7] for period_data in rest_period])
 
-
+# plot data
 for i in range(0, num_exponentials):
     # residuals
     ax1.plot(SOCs, residuals[:,i], label='RC model with ' + xyz_string_list[i] + ' exponential terms')
@@ -193,21 +195,38 @@ for i in range(0, num_exponentials):
     ax2.legend()
     ax2.grid(True)
     
-
-'''
-# loop through each simulation case 
-for period in (rest_period):
-    # loop through each data set (vx, vy, and vz)
-    for i, ax in enumerate(axes):
-        ax.plot(t, sim_runs[sim_case]['uvw_gust'][i,:], sim_runs[sim_case]['color'], label=sim_case)
-        ax.set(xlabel = 't, s', ylabel = 'v, ft/s',
-              title = xyz_string_list[i] + ' gust vs time')
-        ax.legend()
-        ax.grid(True)
-
-    fig, ax = plt.subplots()
-    ax.plot(sim_runs[sim_case]['uvw_gust'][1,:], sim_runs[sim_case]['uvw_gust'][2,:], 'b')
-    ax.set(xlabel = 't, s', ylabel = 'v, ft/s',
-          title = 'y vs z gust velocities, ' + sim_case + ' (see commentary)')
-    ax.grid(True)
-'''
+    # SOC-R1T1
+    ax3.plot(SOCs, R1[:,i], label='R1, RC model with ' + xyz_string_list[i] + ' exponential terms')
+    ax3R.plot(SOCs, T1[:,i], linestyle='--', label='T1, RC model with ' + xyz_string_list[i] + ' exponential terms')
+    ax3.set(xlabel = 'SOC, %', ylabel = 'R, ohms', title = 'SOC-R1 curve')
+    ax3R.set(ylabel='Time constant, s')
+    lines, labels = ax3.get_legend_handles_labels()
+    lines2, labels2 = ax3R.get_legend_handles_labels()
+    ax3.legend(lines + lines2, labels + labels2, loc='upper right')
+    ax3.grid(True)
+    
+    # SOC - R2T2
+    if i > 0:
+        ax4.plot(SOCs, R2[:,i-1], label='R2, RC model with ' + xyz_string_list[i] + ' exponential terms')
+        ax4R.plot(SOCs, T2[:,i-1], linestyle='--', label='T2, RC model with ' + xyz_string_list[i] + ' exponential terms')
+        ax4.set(xlabel = 'SOC, %', ylabel = 'R, ohms', title = 'SOC-R1 curve')
+        ax4R.set(ylabel='Time constant, s')
+        lines, labels = ax4.get_legend_handles_labels()
+        lines2, labels2 = ax4R.get_legend_handles_labels()
+        ax4.legend(lines + lines2, labels + labels2, loc='upper right')
+        ax4.grid(True)
+    
+    if i > 1:
+        ax5.plot(SOCs, R3[:,i-2], label='R3, RC model with ' + xyz_string_list[i] + ' exponential terms')
+        ax5R.plot(SOCs, T3[:,i-2], linestyle='--', label='T3, RC model with ' + xyz_string_list[i] + ' exponential terms')
+        ax5.set(xlabel = 'SOC, %', ylabel = 'R, ohms', title = 'SOC-R1 curve')
+        ax5R.set(ylabel='Time constant, s')
+        lines, labels = ax5.get_legend_handles_labels()
+        lines2, labels2 = ax5R.get_legend_handles_labels()
+        ax5.legend(lines + lines2, labels + labels2, loc='upper right')
+        ax5.grid(True)
+    
+fig6, ax6 = plt.subplots()
+ax6.plot(SOCs, R0)
+ax6.set(xlabel = 'SOC, %', ylabel='R, ohms', title='SOC-R0 curve')
+ax6.grid(True)

@@ -8,7 +8,7 @@ Created on Sun Apr  7 13:30:44 2024
 
 import numpy as np
 import math
-import copy
+import scipy
 from abc import ABC, abstractmethod
 
 class BaseKF(ABC):
@@ -27,7 +27,7 @@ class BaseKF(ABC):
         # return x_hat
         pass
     
-    @abstractmethod()
+    @abstractmethod
     def measurement(self, x_hat):
         # returns y_hat
         pass
@@ -99,19 +99,21 @@ class BaseKF(ABC):
         return x_hat, p_hat
     
 class KF(BaseKF):
+    # implements linear, discrete time standard kalman filter
+    # if no control input, define G=0
     def __init__(self, F, G, Q, H, R):
-        self.F = F
-        self.G = G
-        self.Q = Q
-        self.H = H
-        self.R = R
+        self.F = F # state transition matrix
+        self.G = G # control matrix
+        self.Q = Q # process noise
+        self.H = H # measurement
+        self.R = R # measurement noise
         pass
     
     def updatePredictMatrices(self, x_hat):
         # no update needed for linear KF
         pass
    
-    def state_propogation(self, x_hat, u):
+    def state_propogation(self, x_hat, u=0):
         return self.F @ x_hat + self.G @ u
         
     def measurement(self, x_hat):
@@ -121,5 +123,13 @@ class KF(BaseKF):
         # no update needed for linear KF
         pass
     
+class SSKF(KF):
+    def calculateKalmanGain(self, x_hat, p_hat):
+        self.R, self.H, self.M = self.update_measurement_matrices(x_hat, p_hat)
+        
+        # solf for infinite horizon steady state cost P, then SS kalman gain K
+        P = scipy.linalg.solve_discrete_are(self.F,self.H,self.Q,self.R) # FIXME check this math
+        self.K = np.linalg.inv(self.H.T @ P @ self.H + self.R) @ self.H.T @ P @ self.F
+        pass
     
     

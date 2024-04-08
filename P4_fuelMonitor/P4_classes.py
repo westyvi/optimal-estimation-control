@@ -7,7 +7,6 @@ Created on Sun Apr  7 13:30:44 2024
 """
 
 import numpy as np
-import math
 import scipy
 from abc import ABC, abstractmethod
 
@@ -34,32 +33,18 @@ class BaseKF(ABC):
     
     @abstractmethod
     def update_measurement_matrices(self, x_hat, p_hat):
-        # updates R, H, M(measurement noise gain matrix) self matrices
+        # update R, H, M(measurement noise gain matrix) self matrices
         pass
     
-    
-    # (at the current state estimate x_hat) as class properties
-    def predict(self, x_hat, p_hat, dt):
-       
-        self.F, self.Q, self.L = self.updatePredictMatrices()
-        
-        # update P_hat to apriori covariance estimate P_k|k-1
-        p_hat = self.F @ p_hat @ self.F.T + self.L @ self.Q @ self.L.T
-        p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
-        #epsilon = 1E-07
-        #p_hat = p_hat + np.eye(p_hat.shape[0])*epsilon
-        
-        # update predicted apriori state with nonlinear propogation equation
-        x_hat = self.state_propogation(x_hat)
-        
-        return x_hat, p_hat
-        
     # overwrite this for non-standard kalman gain calculations (SS-KF)
     def calculateKalmanGain(self, x_hat, p_hat):
-        self.R, self.H, self.M = self.update_measurement_matrices(x_hat, p_hat)
+        self.update_measurement_matrices(x_hat, p_hat)
         
         # innovation covariance noise covariance matrix S
-        self.S = self.H @ p_hat @ self.H.T + self.M @ self.R @ self.M.T
+        if np.isscalar(self.M):
+            self.S = self.H @ p_hat @ self.H.T + self.M * self.R * self.M
+        else:
+            self.S = self.H @ p_hat @ self.H.T + self.M @ self.R @ self.M.T
         
         # enforece symmetry 
         self.S = 0.5*(self.S + self.S.T)
@@ -74,11 +59,28 @@ class BaseKF(ABC):
         #self.S = self.S + np.eye(self.S.shape[0])*epsilon
        
         # Kalman gain matrix
-        self.K = p_hat @ self.H.T @ np.linalg.inv(self.S)
-        
+        if np.isscalar(self.S):
+            self.K = p_hat @ self.H.T / (self.S)
+        else:
+            self.K = p_hat @ self.H.T @ np.linalg.inv(self.S)
         pass
     
-    def measurement_correct(self, y_measured, x_hat, p_hat):
+    def predict(self, x_hat, p_hat, dt, u=0):
+       
+        self.updatePredictMatrices(x_hat) # has side effect of updating self matrices
+        
+        # update P_hat to apriori covariance estimate P_k|k-1
+        p_hat = self.F @ p_hat @ self.F.T + self.L @ self.Q @ self.L.T
+        p_hat = 0.5*(p_hat + p_hat.T) # enforce symmetry
+        #epsilon = 1E-07
+        #p_hat = p_hat + np.eye(p_hat.shape[0])*epsilon
+        
+        # update predicted apriori state with nonlinear propogation equation
+        x_hat = self.state_propogation(x_hat, u)
+        
+        return x_hat, p_hat
+        
+    def correct(self, y_measured, x_hat, p_hat):
         self.calculateKalmanGain(x_hat, p_hat)
         
         # compare expected measurement to sensor measurement
@@ -86,27 +88,42 @@ class BaseKF(ABC):
         innovation = y_measured - y_hat
         
         # posteriori mean state estimate (from apriori state estimate)
-        x_hat1 = x_hat + self.K @ innovation
+        if np.isscalar(self.K) or np.isscalar(innovation):
+            x_hat = x_hat + self.K * innovation
+        else:
+            x_hat = x_hat + self.K @ innovation
         
-        # iterate to get better measurement matrices (this makes this an iterative kalman filter: an IEKF )
-        self.update_measurement_matrices(x_hat1, p_hat)
-        x_hat = x_hat + self.K @ innovation # FIXME this line is redundant?
-        
+        # iterate here to get better measurement matrices if IEKF
+
         # Joseph form aposteriori covariance update 
-        A = np.eye(p_hat.shape[0]) - self.K @ self.H
-        p_hat = A @ p_hat @ A.T + self.K @ self.R @ self.K.T
+        if np.isscalar(self.K):
+            A = np.eye(p_hat.shape[0]) - self.K * self.H
+        else:
+            A = np.eye(p_hat.shape[0]) - self.K @ self.H
+        if np.isscalar(self.R) or np.isscalar(self.K):
+            p_hat = A @ p_hat @ A.T + self.K * self.R * self.K.T
+        else:
+            p_hat = A @ p_hat @ A.T + self.K @ self.R @ self.K.T
+            
         
         return x_hat, p_hat
     
 class KF(BaseKF):
     # implements linear, discrete time standard kalman filter
     # if no control input, define G=0
-    def __init__(self, F, G, Q, H, R):
+    def __init__(self, F, G, Q, H, R, L=0,M=0):
         self.F = F # state transition matrix
         self.G = G # control matrix
         self.Q = Q # process noise
         self.H = H # measurement
         self.R = R # measurement noise
+        if L == 0:
+            self.L = np.eye(Q.shape[1])
+        if M == 0:
+            if np.isscalar(R):
+                self.M = 1
+            else:
+                self.M = np.eye(R.shape[1])
         pass
     
     def updatePredictMatrices(self, x_hat):
@@ -114,6 +131,9 @@ class KF(BaseKF):
         pass
    
     def state_propogation(self, x_hat, u=0):
+        # does not handle if state, F, or G are scalar
+        if np.isscalar(u):
+            return self.F @ x_hat + self.G * u
         return self.F @ x_hat + self.G @ u
         
     def measurement(self, x_hat):

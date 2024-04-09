@@ -41,6 +41,8 @@ class BaseKF(ABC):
         
         self.K = p_hat @ self.H.T / (self.H @ p_hat @ self.H.T + self.R)
         
+        S = self.R + self.H @ (p_hat @ self.H.T)
+        self.K = np.dot(p_hat @ self.H.T, (1.0/S))
         #S = self.R + self.H @ (p_hat @ self.H.T)
         #self.K = np.dot(p_hat @ self.H.T, (1.0/S))
         
@@ -156,6 +158,11 @@ class SSKF(KF):
         # solf for infinite horizon steady state cost P, then SS kalman gain K
         P = scipy.linalg.solve_discrete_are(self.F.T,np.array([[self.H[0]],[self.H[1]]]),self.Q,self.R) 
         self.K = 1/(self.H.T @ P @ self.H + self.R) * self.H.T @ P @ self.F.T
+        
+        # try number 2 (from paper)
+        D = self.H @ P @ self.H.T + self.R
+        G2 = P @ self.H.T /(D) # different from control matrix self.G
+        self.K = self.F @ G2
     
 class CIKF(KF):
     def correct(self, y_measured, x_hat, p_hat):

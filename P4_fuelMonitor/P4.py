@@ -7,11 +7,9 @@ Project 4:
     
     Kalman Filtering for fuel estimation 
 
-Commentary and initial assignment contained in project folder
+initial assignment contained in project folder
     
 Written by Joey Westermeyer 2024
-
-notes:
     
 """
 

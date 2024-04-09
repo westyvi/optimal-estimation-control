@@ -38,16 +38,23 @@ class BaseKF(ABC):
     
     # overwrite this for non-standard kalman gain calculations (SS-KF)
     def calculateKalmanGain(self, x_hat, p_hat):
+        
+        self.K = p_hat @ self.H.T / (self.H @ p_hat @ self.H.T + self.R)
+        
+        #S = self.R + self.H @ (p_hat @ self.H.T)
+        #self.K = np.dot(p_hat @ self.H.T, (1.0/S))
+        
+        '''
         self.update_measurement_matrices(x_hat, p_hat)
         
         # innovation covariance noise covariance matrix S
         if np.isscalar(self.M):
-            self.S = self.H @ p_hat @ self.H.T + self.M * self.R * self.M
+            self.S = self.H @ (p_hat @ self.H.T) + self.M * self.R * self.M
         else:
             self.S = self.H @ p_hat @ self.H.T + self.M @ self.R @ self.M.T
         
         # enforece symmetry 
-        self.S = 0.5*(self.S + self.S.T)
+        #self.S = 0.5*(self.S + self.S.T)
         
         # enforce positive semidefinite
         #self.S = la.sqrtm(self.S.T @ self.S)
@@ -60,10 +67,10 @@ class BaseKF(ABC):
        
         # Kalman gain matrix
         if np.isscalar(self.S):
-            self.K = p_hat @ self.H.T / (self.S)
+            self.K = (p_hat @ self.H.T) / (self.S)
         else:
             self.K = p_hat @ self.H.T @ np.linalg.inv(self.S)
-        pass
+        pass'''
     
     def predict(self, x_hat, p_hat, dt, u=0):
        
@@ -104,7 +111,6 @@ class BaseKF(ABC):
             p_hat = A @ p_hat @ A.T + self.K * self.R * self.K.T
         else:
             p_hat = A @ p_hat @ A.T + self.K @ self.R @ self.K.T
-            
         
         return x_hat, p_hat
     
@@ -124,7 +130,7 @@ class KF(BaseKF):
                 self.M = 1
             else:
                 self.M = np.eye(R.shape[1])
-        pass
+
     
     def updatePredictMatrices(self, x_hat):
         # no update needed for linear KF
@@ -145,11 +151,51 @@ class KF(BaseKF):
     
 class SSKF(KF):
     def calculateKalmanGain(self, x_hat, p_hat):
-        self.R, self.H, self.M = self.update_measurement_matrices(x_hat, p_hat)
+        self.update_measurement_matrices(x_hat, p_hat)
         
         # solf for infinite horizon steady state cost P, then SS kalman gain K
-        P = scipy.linalg.solve_discrete_are(self.F,self.H,self.Q,self.R) # FIXME check this math
-        self.K = np.linalg.inv(self.H.T @ P @ self.H + self.R) @ self.H.T @ P @ self.F
-        pass
+        P = scipy.linalg.solve_discrete_are(self.F.T,np.array([[self.H[0]],[self.H[1]]]),self.Q,self.R) 
+        self.K = 1/(self.H.T @ P @ self.H + self.R) * self.H.T @ P @ self.F.T
     
+class CIKF(KF):
+    def correct(self, y_measured, x_hat, p_hat):
+        # compare expected measurement to sensor measurement
+        y_hat = self.measurement(x_hat)
+        innovation = y_measured - y_hat
+        
+        # solve covariance intersection optimization problem for wopt (w_optimal)
+        P_inv = np.linalg.inv(p_hat)
+        if np.isscalar(self.R):
+            R_inv =1/self.R
+            objective = lambda omega: np.trace(np.linalg.inv(omega*P_inv + (1 - omega)*self.H.T * R_inv @ self.H))
+        else:
+            R_inv = np.linalg.inv(self.R)
+            objective = lambda omega: np.trace(np.linalg.inv(omega*P_inv + (1 - omega)*self.H.T @ R_inv @ self.H))
+           
+        res = scipy.optimize.minimize_scalar(objective, bounds=(0,0.95), method='bounded')
+        wopt = res.x
+        
+        # calculate aposteriori covariance and mean
+        if np.isscalar(self.R):
+            p_hat_posteriori = np.linalg.inv(wopt*P_inv + (1-wopt)*self.H.T * R_inv @ self.H)
+            self.K = (1-wopt)*p_hat_posteriori @ self.H.T * R_inv
+        else:
+            p_hat = np.linalg.inv(wopt*P_inv + (1-wopt)*self.H.T@ R_inv @ self.H)
+            self.K = (1-wopt)*p_hat @ self.H.T @ R_inv
+            
+        # p_hat = 0.5*p_hat + 0.5 * p_hat.T # enforce symmetry 
+        if np.isscalar(innovation):
+            x_hat = x_hat + self.K * innovation
+        else:
+            x_hat = x_hat + self.K @ innovation
+        
+        return x_hat, p_hat_posteriori
     
+class FIKS(KF):
+    # this assumes u is a scalar
+    def smooth(self, x_plus1_posteriori, x_posteriori, u, P_plus1_posteriori, P_posteriori):
+        innovation = x_plus1_posteriori - self.F @ x_posteriori - self.G * u
+        Ks = P_posteriori @ self.F.T @ np.linalg.inv(self.F @ P_posteriori @ self.F.T + self.Q)
+        x_smoothed = x_posteriori + Ks @ innovation
+        P_smoothed = P_posteriori + Ks @ (P_plus1_posteriori - self.F @ P_posteriori @ self.F.T - self.Q) @ Ks.T
+        return x_smoothed, P_smoothed

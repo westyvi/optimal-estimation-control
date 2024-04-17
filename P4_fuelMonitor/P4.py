@@ -18,6 +18,7 @@ from matplotlib import pyplot as plt
 import csv
 import P4_classes
 import copy
+import scipy
 
 # Load the CSV file using numpy
 csv_data = np.genfromtxt('./fuel_data.csv', delimiter=',', dtype=None)
@@ -97,7 +98,7 @@ def plot(filter_log, filter_string):
     ax.plot(time, filter_log['x'][:,0]-fk, c='red', label=filter_string)
     ax.fill_between(time, -2*np.sqrt(filter_log['P'][:,0,0]), 2*np.sqrt(filter_log['P'][:,0,0]), color='purple', alpha=0.5, label='2-sigma covariance bound')
     ax.set(xlabel = 't, s', ylabel = 'Fuel Remaining, cm^3',
-          title = 'Posterior State Estimate Errors and estimated 2-sigma bounds vs time, ' + filter_string)
+          title = 'Fuel Remaining Errors and estimated 2-sigma bounds vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
     
@@ -107,20 +108,54 @@ def plot(filter_log, filter_string):
     ax.plot(time, filter_log['x'][:,1]-bk, c='red', label=filter_string)
     ax.fill_between(time, -2*np.sqrt(np.abs(filter_log['P'][:,1,1])), 2*np.sqrt(np.abs(filter_log['P'][:,1,1])), color='purple', alpha=0.5, label='2-sigma covariance bound')
     ax.set(xlabel = 't, s', ylabel = 'Flowmeter Bias, cm',
-          title = 'Posterior State Estimate Errors and estimated 2-sigma bounds vs time, ' + filter_string)
+          title = 'Flowmeter Bias Errors and estimated 2-sigma bounds vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
     
-
-# standard discrete-time Kalman Filter (KF)
-KF = P4_classes.KF(F, G, Q, H, R)
-runFilter(KF, filters_log['KF'], True)
-plot(filters_log['KF'], 'KF')
-
 # steady-state Kalman Filter (SS_KF)
+
 SSKF = P4_classes.SSKF(F, G, Q, H, R)
 runFilter(SSKF, filters_log['SSKF'], True)
 plot(filters_log['SSKF'], 'SSKF')
+
+#%% standard discrete-time Kalman Filter (KF)
+KF = P4_classes.KF(F, G, Q, H, R)
+#runFilter(KF, filters_log['KF'], True)
+
+# calculate SSKF gain for comparison purposes
+filter_object = KF
+filter_log = filters_log['KF']
+Pcost = scipy.linalg.solve_discrete_are(F.T,np.array([[H[0]],[H[1]]]),Q,R) 
+Kss1 = 1/(H.T @ Pcost @ H + R) * H.T @ Pcost @ F.T
+# try number 2 (from paper)
+D = H @ Pcost @ H.T + R
+G2 = Pcost @ H.T /(D) # different from control matrix G
+Kss2 = F @ G2
+
+for i in range(0,time.size-1):
+    # could make faster by not looking up data in log, but this more readable
+    x_apriori, P_apriori = KF.predict(filter_log['x'][i,:], filter_log['P'][i,:,:], dt, uk[i])
+    x_posteriori, P_posteriori = KF.correct(yk[i+1], x_apriori, P_apriori)
+    K = KF.K
+    
+    '''# raw correct step instead of OOP
+    Mtest = KF.H @ x_apriori
+    Stest = KF.R + KF.H @ (P_apriori @ KF.H.T)
+    Ktest = np.dot(P_apriori @ KF.H.T, (1.0/Stest))
+    #Ktest = Kss2 # overwrite to SSKF gain
+    Xtest = x_apriori + np.dot(Ktest, (yk[i+1] - Mtest))
+    
+    PtestEE = ((np.eye(len(Xtest))- Ktest @ KF.H) @ P_apriori) @ ((np.eye(len(Xtest))-Ktest @ KF.H).T) + Ktest @ np.dot(KF.R, Ktest.T)
+    Atest = np.eye(P_apriori.shape[0]) - Ktest * H
+    Ptest = Atest @ P_apriori @ Atest.T + Ktest * R * Ktest.T
+    print(Ptest-PtestEE)'''
+    
+    filter_log['x'][i+1,:] = x_posteriori
+    filter_log['P'][i+1,:,:] = P_posteriori
+    filter_log['gain'][i, :] = K
+
+plot(filters_log['KF'], 'KF')
+
 
 # plot kalman gains vs SSKF gains
 fig, ax = plt.subplots()
@@ -133,6 +168,7 @@ ax.set(xlabel = 't, s', ylabel = 'Kalman gains, cm^3',
 ax.legend()
 plt.grid(True)
 
+#%%
 # covariance intersection Kalman Filter (CI-KF)
 # bound omega <= 0.95 for search stability
 CIKF = P4_classes.CIKF(F, G, Q, H, R)
@@ -141,11 +177,11 @@ plot(filters_log['CIKF'], 'CIKF')
 
 # fixed-interval Kalman Smoother (FI_KS)
 FIKS = P4_classes.FIKS(F, G, Q, H, R)
-filters_log['FIKS'] = copy.deepcopy(filters_log['SSKF'])
+filters_log['FIKS'] = copy.deepcopy(filters_log['KF'])
 for i in range(time.size-2,-1,-1):
     # could make faster by not looking up data in log, but this more readable
     #x_plus1_posteriori, x_posteriori, u, P_plus1_posteriori, P_posteriori)
-    x_smoothed, P_smoothed = FIKS.smooth(filters_log['FIKS']['x'][i+1,:], filters_log['SSKF']['x'][i,:], uk[i], filters_log['FIKS']['P'][i+1,:,:], filters_log['SSKF']['P'][i,:,:])
+    x_smoothed, P_smoothed = FIKS.smooth(filters_log['FIKS']['x'][i+1,:], filters_log['KF']['x'][i,:], uk[i], filters_log['FIKS']['P'][i+1,:,:], filters_log['KF']['P'][i,:,:])
     filters_log['FIKS']['x'][i,:] = x_smoothed
     filters_log['FIKS']['P'][i,:,:] = P_smoothed
 plot(filters_log['FIKS'], 'FIKS')

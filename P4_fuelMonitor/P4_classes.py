@@ -95,7 +95,7 @@ class BaseKF(ABC):
         # compare expected measurement to sensor measurement
         y_hat = self.measurement(x_hat)
         innovation = y_measured - y_hat
-        
+        '''
         # posteriori mean state estimate (from apriori state estimate)
         if np.isscalar(self.K) or np.isscalar(innovation):
             x_hat = x_hat + self.K * innovation
@@ -109,10 +109,20 @@ class BaseKF(ABC):
             A = np.eye(p_hat.shape[0]) - self.K * self.H
         else:
             A = np.eye(p_hat.shape[0]) - self.K @ self.H
-        if np.isscalar(self.R) or np.isscalar(self.K):
+            
+        if np.isscalar(self.K):
+            # FIXME need four cases not two
             p_hat = A @ p_hat @ A.T + self.K * self.R * self.K.T
         else:
-            p_hat = A @ p_hat @ A.T + self.K @ self.R @ self.K.T
+            if np.isscalar(self.R): #
+                p_hat = A @ p_hat @ A.T + self.R* self.K @ self.K.T
+            else:
+                p_hat = A @ p_hat @ A.T + self.K @ self.R @ self.K.T
+                '''
+        
+        x_hat = x_hat + self.K * innovation
+        A = np.eye(p_hat.shape[0]) - np.outer(self.K,self.H)
+        p_hat = A @ p_hat @ A.T + self.R* np.outer(self.K, self.K.T)
         
         return x_hat, p_hat
     
@@ -155,7 +165,7 @@ class SSKF(KF):
     def calculateKalmanGain(self, x_hat, p_hat):
         self.update_measurement_matrices(x_hat, p_hat)
         
-        # solf for infinite horizon steady state cost P, then SS kalman gain K
+        # solve for infinite horizon steady state cost P, then SS kalman gain K
         P = scipy.linalg.solve_discrete_are(self.F.T,np.array([[self.H[0]],[self.H[1]]]),self.Q,self.R) 
         self.K = 1/(self.H.T @ P @ self.H + self.R) * self.H.T @ P @ self.F.T
         

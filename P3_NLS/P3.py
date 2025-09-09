@@ -10,16 +10,16 @@ Project 3:
 Commentary and initial assignment contained in project folder
     
 Written by Joey Westermeyer 2024
-
-notes:
     
 """
 
 import numpy as np
 from matplotlib import pyplot as plt
 import scipy
-import pandas
 import csv
+import os
+plot_dir = os.path.join(os.path.dirname(__file__), 'plots')
+os.makedirs(plot_dir, exist_ok=True)
 
 def load_pulse_test_data(file_path):
     times = []
@@ -88,7 +88,8 @@ del rest_period[0] # first rest period isn't a voltage recovery period; it is pr
 
 # calculate optimal battery parameters for each rest period using nonlinear least squares
 num_exponentials = 3 # number of RC exponential terms to approximate
-for period in rest_period:
+fig, ax = plt.subplots()
+for idx, period in enumerate(rest_period):
     sol = []
     cost = []
     residual = []
@@ -126,10 +127,17 @@ for period in rest_period:
         cost.append(result.cost*2) # scipy calculates cost function as 0.5*residual**2
         
         # plot data and fit for this rest period
-        '''fig, ax = plt.subplots()
-        ax.plot(period['time'][1:], period['voltage'][1:],label='data')
-        ax.plot(period['time'][1:], fun(result.x,period['time'][1:]-period['time'][1]), label='fit')
-        ax.legend()'''
+        if idx == 0:  # Only plot for the chosen rest period (update idx as needed)
+            if n == 1:
+                ax.plot(period['time'][1:], period['voltage'][1:], label='Measured OCV')
+                ax.set(xlabel='Time (s)', ylabel='Voltage (V)', title='Measured OCV During One Pulse Discharge')
+            ax.plot(
+                period['time'][1:],
+                fun(result.x, period['time'][1:] - period['time'][1]),
+                label=f'Model fit ({n} RC term{"s" if n > 1 else ""})'
+            )
+        ax.legend()
+
         
         residual_error = np.sum((fun(result.x,period['time'][1:-1]-period['time'][1]) - period['voltage'][1:-1])**2)/2
         residual.append(residual_error)
@@ -137,20 +145,9 @@ for period in rest_period:
     period['optimal_params'] = sol
     period['residuals'] = np.array(residual)
     period['cost'] = cost
-
-
-# %%plot results
-fig1, ax1 = plt.subplots() 
-fig2, ax2 = plt.subplots() 
-fig3, ax3 = plt.subplots()
-fig4, ax4 = plt.subplots()
-fig5, ax5 = plt.subplots()
-ax3R = ax3.twinx()
-ax4R = ax4.twinx()
-ax5R = ax5.twinx()
-figs = [fig1, fig2, fig3]
-axes = [ax1, ax2, ax3]
-xyz_string_list = ['1', '2', '3']
+    i += 1
+fig.savefig(os.path.join(plot_dir, 'single_period_fit.png'), bbox_inches='tight')
+plt.close(fig)
 
 # pull data from each period for plotting
 residuals = np.zeros((len(rest_period), num_exponentials))
@@ -177,52 +174,80 @@ for i in range(0,num_exponentials):
         R3[:,i-2] = np.array([period_data['optimal_params'][i][6] for period_data in rest_period])
         T3[:,i-2] = np.array([period_data['optimal_params'][i][7] for period_data in rest_period])
 
-# plot data
-for i in range(0, num_exponentials):
-    # residuals
-    ax1.plot(SOCs, residuals[:,i], label='RC model with ' + xyz_string_list[i] + ' exponential terms')
-    ax1.set(xlabel = 'SOC, %', ylabel = 'residuals, volts^2', title = 'residuals vs SOC')
-    ax1.legend()
-    ax1.grid(True)
-    
-    # SOC-OCV
-    ax2.plot(SOCs, OCV[:,i], label='RC model with ' + xyz_string_list[i] + ' exponential terms')
-    ax2.set(xlabel = 'SOC, %', ylabel = 'OCV, volts', title = 'SOC-OCV curve')
-    ax2.legend()
-    ax2.grid(True)
-    
-    # SOC-R1T1
-    ax3.plot(SOCs, R1[:,i], label='R1, RC model with ' + xyz_string_list[i] + ' exponential terms')
-    ax3R.plot(SOCs, T1[:,i], linestyle='--', label='T1, RC model with ' + xyz_string_list[i] + ' exponential terms')
-    ax3.set(xlabel = 'SOC, %', ylabel = 'R, ohms', title = 'SOC-R1 curve')
-    ax3R.set(ylabel='Time constant, s')
-    lines, labels = ax3.get_legend_handles_labels()
-    lines2, labels2 = ax3R.get_legend_handles_labels()
-    ax3.legend(lines + lines2, labels + labels2, loc='upper right')
-    ax3.grid(True)
-    
-    # SOC - R2T2
-    if i > 0:
-        ax4.plot(SOCs, R2[:,i-1], label='R2, RC model with ' + xyz_string_list[i] + ' exponential terms')
-        ax4R.plot(SOCs, T2[:,i-1], linestyle='--', label='T2, RC model with ' + xyz_string_list[i] + ' exponential terms')
-        ax4.set(xlabel = 'SOC, %', ylabel = 'R, ohms', title = 'SOC-R1 curve')
-        ax4R.set(ylabel='Time constant, s')
-        lines, labels = ax4.get_legend_handles_labels()
-        lines2, labels2 = ax4R.get_legend_handles_labels()
-        ax4.legend(lines + lines2, labels + labels2, loc='upper right')
-        ax4.grid(True)
-    
-    if i > 1:
-        ax5.plot(SOCs, R3[:,i-2], label='R3, RC model with ' + xyz_string_list[i] + ' exponential terms')
-        ax5R.plot(SOCs, T3[:,i-2], linestyle='--', label='T3, RC model with ' + xyz_string_list[i] + ' exponential terms')
-        ax5.set(xlabel = 'SOC, %', ylabel = 'R, ohms', title = 'SOC-R1 curve')
-        ax5R.set(ylabel='Time constant, s')
-        lines, labels = ax5.get_legend_handles_labels()
-        lines2, labels2 = ax5R.get_legend_handles_labels()
-        ax5.legend(lines + lines2, labels + labels2, loc='upper right')
-        ax5.grid(True)
-    
-fig6, ax6 = plt.subplots()
-ax6.plot(SOCs, R0)
-ax6.set(xlabel = 'SOC, %', ylabel='R, ohms', title='SOC-R0 curve')
-ax6.grid(True)
+# Plot measured OCV (voltage) vs time during pulse discharge test
+fig, ax = plt.subplots()
+ax.plot(times, voltages, label='Measured Voltage', color='black', linewidth=1)
+ax.set(xlabel='Time (s)', ylabel='Voltage (V)', title='Measured OCV During Pulse Discharge Test')
+ax.legend()
+fig.savefig(os.path.join(plot_dir, 'ocv_vs_time.png'), bbox_inches='tight')
+plt.close(fig)
+
+# Residuals vs SOC
+fig, ax = plt.subplots()
+for i in range(num_exponentials):
+    ax.plot(SOCs, residuals[:,i], label=f'RC model with {i+1} exponential terms')
+ax.set(xlabel='SOC', ylabel='Residuals', title='Residuals vs SOC')
+ax.legend()
+fig.savefig(os.path.join(plot_dir, 'residuals_vs_soc.png'), bbox_inches='tight')
+plt.close(fig)
+
+# OCV vs SOC
+fig, ax = plt.subplots()
+for i in range(num_exponentials):
+    ax.plot(SOCs, OCV[:,i], label=f'RC model with {i+1} exponential terms')
+ax.set(xlabel='SOC', ylabel='OCV', title='OCV vs SOC')
+ax.legend()
+fig.savefig(os.path.join(plot_dir, 'ocv_vs_soc.png'), bbox_inches='tight')
+plt.close(fig)
+
+# R1/T1 vs SOC
+fig, ax = plt.subplots()
+for i in range(num_exponentials):
+    ax.plot(SOCs, R1[:,i], label=f'R1, RC model with {i+1} exponential terms')
+ax.set(xlabel='SOC', ylabel='R1', title='R1 vs SOC')
+ax.legend()
+fig.savefig(os.path.join(plot_dir, 'r1_vs_soc.png'), bbox_inches='tight')
+plt.close(fig)
+
+fig, ax = plt.subplots()
+for i in range(num_exponentials):
+    ax.plot(SOCs, T1[:,i], label=f'T1, RC model with {i+1} exponential terms')
+ax.set(xlabel='SOC', ylabel='T1', title='T1 vs SOC')
+ax.legend()
+fig.savefig(os.path.join(plot_dir, 't1_vs_soc.png'), bbox_inches='tight')
+plt.close(fig)
+
+# R2/T2 and R3/T3 if present
+if num_exponentials > 1:
+    fig, ax = plt.subplots()
+    for i in range(1, num_exponentials):
+        ax.plot(SOCs, R2[:,i-1], label=f'R2, RC model with {i+1} exponential terms')
+    ax.set(xlabel='SOC', ylabel='R2', title='R2 vs SOC')
+    ax.legend()
+    fig.savefig(os.path.join(plot_dir, 'r2_vs_soc.png'), bbox_inches='tight')
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    for i in range(1, num_exponentials):
+        ax.plot(SOCs, T2[:,i-1], label=f'T2, RC model with {i+1} exponential terms')
+    ax.set(xlabel='SOC', ylabel='T2', title='T2 vs SOC')
+    ax.legend()
+    fig.savefig(os.path.join(plot_dir, 't2_vs_soc.png'), bbox_inches='tight')
+    plt.close(fig)
+
+if num_exponentials > 2:
+    fig, ax = plt.subplots()
+    for i in range(2, num_exponentials):
+        ax.plot(SOCs, R3[:,i-2], label=f'R3, RC model with {i+1} exponential terms')
+    ax.set(xlabel='SOC', ylabel='R3', title='R3 vs SOC')
+    ax.legend()
+    fig.savefig(os.path.join(plot_dir, 'r3_vs_soc.png'), bbox_inches='tight')
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    for i in range(2, num_exponentials):
+        ax.plot(SOCs, T3[:,i-2], label=f'T3, RC model with {i+1} exponential terms')
+    ax.set(xlabel='SOC', ylabel='T3', title='T3 vs SOC')
+    ax.legend()
+    fig.savefig(os.path.join(plot_dir, 't3_vs_soc.png'), bbox_inches='tight')
+    plt.close(fig)

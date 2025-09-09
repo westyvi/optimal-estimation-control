@@ -1,3 +1,24 @@
+# Project 3: Battery Model Parameter Estimation
+
+## Overview
+Fits pulse discharge battery data to nonlinear equivalent circuit models (1, 2, 3 RC branches) using nonlinear least squares. Implements parameter estimation and compares model fits. Estimates the optimal RC parameters for each state of charge (SOC) from 0.0 to 1.0 from data taken during a pulse discharge test:
+
+![Pulse Discharge Test](plots/ocv_vs_time.png)
+*OCV vs time: Pulse Discharge test renders battery RC components observable during the rest period, done for multiple SOC levels*
+
+## Results
+![Residuals vs SOC](plots/residuals_vs_soc.png)
+
+*Residuals vs SOC: more RC branches reduce model error.*
+
+![Single Discharge](plots/single_period_fit.png)
+
+*Single Discharge: more RC branches produces better fit*
+
+## More Results
+The full set of plots is already available in the `plots/` folder. You can also navigate to this directory and run `P3.py` to regenerate them if desired.
+
+## Commentary
 As shown by the residuals vs SOC chart, the models with more exponential terms (more RC circuits in series) better approximate the data as defined by the sum of squared residuals. What is interesting to note, however, is that there is a very large difference in residuals between 1 and 2 exponential terms and a much smaller improvement in the change from 2 to 3 RC terms. This intuitively makes sense, as the extra terms largely decrease the data-to-model error until the model approximates the data well enough, at which point adding even more terms has decreasing benefits and can even eventually lead to overfitting the data. 
 
 As can clearly be seen from the residuals plot, the model with two exponential terms fits the data much better than the model with one term. This model could accordingly be a better choice for applications concerned with both accuracy and compute. The model with three terms sees only marginal improvement in the residuals plot, but clearly shows better performance for the first rest period in the pulse discharge test. This can be seen on the SOC curve, where the third exponential term allows the 3-term model to calculate a smooth, monotonically decreasing (with time, increasing with SOC) curve as physics would suggest, as opposed to the 2-term model that has a slope discontinuity and OCV-derivative sign change at 0% SOC. So for applications where the best model fit is desired and compute resources are not an issue, the 3-term model could be best. 

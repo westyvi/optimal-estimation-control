@@ -127,46 +127,55 @@ Rs = [R1, R2, R3]
     
 def plot(sol, designString):
     
+    import os
+    plot_dir = os.path.join(os.path.dirname(__file__), 'plots')
+    os.makedirs(plot_dir, exist_ok=True)
+
     fig, ax = plt.subplots()
     ax.plot(sol[0].y[0,:], sol[0].y[1,:], 'b', label='case 1')
     ax.plot(sol[1].y[0,:], sol[1].y[1,:], 'r', label='case 2')
     ax.plot(sol[2].y[0,:], sol[2].y[1,:], 'g', label='case 3')
     ax.set(xlabel = 'x, m', ylabel = 'y, m',
-          title = 'xy trajectory, ' + designString)
+        title = 'xy trajectory, ' + designString)
     ax.legend()
     plt.grid(True)
-    
+    fig.savefig(os.path.join(plot_dir, f'xy_traj_{designString}.png'), bbox_inches='tight')
+    plt.close(fig)
+
     fig, ax = plt.subplots()
     ax.plot(sol[0].t, sol[0].y[2,:], 'b', label='case 1')
     ax.plot(sol[1].t, sol[1].y[2,:], 'r', label='case 2')
     ax.plot(sol[2].t, sol[2].y[2,:], 'g', label='case 3')
     ax.set(xlabel = 't, s', ylabel = 'z, m',
-          title = 'z-time trajectory, ' + designString)
+        title = 'z-time trajectory, ' + designString)
     ax.legend()
     plt.grid(True)
-    
+    fig.savefig(os.path.join(plot_dir, f'z_time_{designString}.png'), bbox_inches='tight')
+    plt.close(fig)
+
     fig, (ax1, ax2, ax3) = plt.subplots(3,1)
     fig.suptitle('control input vs time, ' + designString)
     ax1.grid(True)
     ax2.grid(True)
     ax3.grid(True)
-    
+
     ax1.plot(sol[0].t, sol[0].u[0,:], 'b', label='case 1')
     ax1.plot(sol[1].t, sol[1].u[0,:], 'r', label='case 2')
     ax1.plot(sol[2].t, sol[2].u[0,:], 'g', label='case 3')
     ax1.set(xlabel = 't, s', ylabel = 'U_x, m/s2')
-    
+
     ax2.plot(sol[0].t, sol[0].u[1,:], 'b', label='case 1')
     ax2.plot(sol[1].t, sol[1].u[1,:], 'r', label='case 2')
     ax2.plot(sol[2].t, sol[2].u[1,:], 'g', label='case 3')
     ax2.set(xlabel = 't, s', ylabel = 'U_y, m/s2')
     ax2.legend()
-    
+
     ax3.plot(sol[0].t, sol[0].u[2,:], 'b', label='case 1')
     ax3.plot(sol[1].t, sol[1].u[2,:], 'r', label='case 2')
     ax3.plot(sol[2].t, sol[2].u[2,:], 'g', label='case 3')
     ax3.set(xlabel = 't, s', ylabel = 'U_z, m/s2')
-
+    fig.savefig(os.path.join(plot_dir, f'control_inputs_{designString}.png'), bbox_inches='tight')
+    plt.close(fig)
     
 # %% finite-horizon, continous time LQR
 def continous_Riccati(t, P):

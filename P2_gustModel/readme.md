@@ -1,3 +1,17 @@
+# Project 2: Dryden Gust Model Simulation
+
+## Overview
+Implements the Dryden stochastic gust model to simulate wind turbulence (light, moderate, severe) in three axes for aircraft. The model is a Markov-based state space and outputs time histories of gust velocities. I also found a shortcoming in the gust model for adequately testing systems during this assignment, detailed in the commentary section.
+
+## Results
+![X Gust Velocity - Severe](plots/gust_x_time_severe.png)
+
+*X gust velocity vs time for severe turbulence: largest fluctuations are observed.*
+
+## More Results
+The full set of plots is already available in the `plots/` folder. You can also navigate to this directory and run `P2.py` to regenerate them if desired.
+
+## Commentary
 As expected, the Dryden gust model with severe turbulence has much larger fluctuations
 and maximum gust velocities compared to light turbulence, and the moderate case has fluctation and
 absolute magnitudes between the two. From roughly inspecting the plots, the values 

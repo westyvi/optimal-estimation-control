@@ -18,6 +18,11 @@ from matplotlib import pyplot as plt
 import csv
 import P5_classes
 import copy
+import os
+
+# create plot directory
+plot_dir = os.path.join(os.path.dirname(__file__), 'plots')
+os.makedirs(plot_dir, exist_ok=True)
 
 # Load the CSV file using numpy
 csv_data = np.genfromtxt('./altimeter_data.csv', delimiter=',', dtype=None)
@@ -57,12 +62,17 @@ if False:
     for i in range(len(time)-1):
         xtest[:,i+1] = propogate_state(xtest[:,i])
     fig, ax = plt.subplots()
+    import os
+    plot_dir = os.path.join(os.path.dirname(__file__), 'plots')
+    os.makedirs(plot_dir, exist_ok=True)
     ax.plot(time, xtest[2,:], c='red', label='model')
     ax.plot(time, Cbk, c='black', label='truth')
     ax.set(xlabel = 't, s', ylabel = 'Altitude, ft',
-          title = 'Estimated Altitude vs time, ')
+        title = 'Estimated Altitude vs time, ')
     ax.legend()
     plt.grid(True)
+    fig.savefig(os.path.join(plot_dir, 'altitude_vs_time_pure_propogate.png'), bbox_inches='tight')
+    plt.close(fig)
 
 def gen_state_jacobian(x_hat):
     
@@ -172,12 +182,12 @@ def plot(filter_log, filter_string):
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,0], c='red', label='estimated', lw=2)
     ax.plot(time, hk, c='black', label='truth')
-    ax.set(xlabel = 't, s', ylabel = 'Altitude, ft',
-          title = 'Estimated Altitude vs time, ' + filter_string)
+    ax.set(xlabel = 't, s', ylabel = 'Alt (ft)', title = f'Alt {filter_string}')
     ax.legend()
     plt.grid(True)
-    
-    # Plot the posterior state estimates versus the true states for the flow meter bias.
+    fig.savefig(os.path.join(plot_dir, f'alt_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
+
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,1], c='red', label='estimated')
     ax.plot(time, sk, c='black', label='truth')
@@ -185,8 +195,9 @@ def plot(filter_log, filter_string):
           title = 'Estimated Vertical Speed vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
-    
-    # Plot the posterior state estimates versus the true states for the flow meter bias.
+    fig.savefig(os.path.join(plot_dir, f'vspd_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
+
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,2], c='red', label='estimated')
     ax.plot(time, Cbk, c='black', label='truth')
@@ -194,19 +205,18 @@ def plot(filter_log, filter_string):
           title = 'Estimated Ballistic Coefficient vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
-    
-    # Plot the posterior state estimate errors and the ±2𝜎 from the diagonals of the steady-state
-    # posterior covariance for the fuel remaining.
+    fig.savefig(os.path.join(plot_dir, f'bc_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
+
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,0]-hk, c='red', label=filter_string)
-    ax.fill_between(time, -2*np.sqrt(filter_log['P'][:,0,0]), 2*np.sqrt(filter_log['P'][:,0,0]), color='purple', alpha=0.5, label='2-sigma covariance bound')
-    ax.set(xlabel = 't, s', ylabel = 'Altitude',
-          title = 'Posterior State Estimate Errors and estimated 2-sigma bounds vs time, ' + filter_string)
+    ax.fill_between(time, -2*np.sqrt(filter_log['P'][:,0,0]), 2*np.sqrt(filter_log['P'][:,0,0]), color='purple', alpha=0.5, label='2-sigma')
+    ax.set(xlabel = 't, s', ylabel = 'Alt err', title = f'AltErr {filter_string}')
     ax.legend()
     plt.grid(True)
-    
-    # Plot the posterior state estimate errors and the ±2𝜎 from the diagonals of the steady-state
-    # posterior covariance for the flow meter bias.
+    fig.savefig(os.path.join(plot_dir, f'alt_err_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
+
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,1]-sk, c='red', label=filter_string)
     ax.fill_between(time, -2*np.sqrt(np.abs(filter_log['P'][:,1,1])), 2*np.sqrt(np.abs(filter_log['P'][:,1,1])), color='purple', alpha=0.5, label='2-sigma covariance bound')
@@ -214,9 +224,9 @@ def plot(filter_log, filter_string):
           title = 'Posterior State Estimate Errors and estimated 2-sigma bounds vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
-    
-    # Plot the posterior state estimate errors and the ±2𝜎 from the diagonals of the steady-state
-    # posterior covariance for the flow meter bias.
+    fig.savefig(os.path.join(plot_dir, f'vspd_err_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
+
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,2]-Cbk, c='red', label=filter_string)
     ax.fill_between(time, -2*np.sqrt(np.abs(filter_log['P'][:,2,2])), 2*np.sqrt(np.abs(filter_log['P'][:,2,2])), color='purple', alpha=0.5, label='2-sigma covariance bound')
@@ -224,7 +234,8 @@ def plot(filter_log, filter_string):
           title = 'Posterior State Estimate Errors and estimated 2-sigma bounds vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
-    
+    fig.savefig(os.path.join(plot_dir, f'bc_err_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
 
 #%% standard discrete-time Kalman Filter (EKF)
 
@@ -269,8 +280,3 @@ for i in range(time.size-2,-1,-1):
     filters_log['FIKS']['x'][i,:] = x_smoothed
     filters_log['FIKS']['P'][i,:,:] = P_smoothed
 plot(filters_log['FIKS'], 'FIKS')'''
-
-# commentary
-'''
-A
-'''

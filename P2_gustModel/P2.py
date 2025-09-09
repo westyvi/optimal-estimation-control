@@ -93,27 +93,32 @@ for sim_case in sim_runs.values():
 
 
 # %%plot results
+import os
+plot_dir = os.path.join(os.path.dirname(__file__), 'plots')
+os.makedirs(plot_dir, exist_ok=True)
 t = np.linspace(0, simTime, numpts)
-fig1, ax1 = plt.subplots()
-fig2, ax2 = plt.subplots()
-fig3, ax3 = plt.subplots()
-figs = [fig1, fig2, fig3]
-axes = [ax1, ax2, ax3]
+figs = []
+axes = []
 xyz_string_list = ['x', 'y', 'z']
 
 # loop through each simulation case 
 for sim_case in reversed(sim_runs):
     # loop through each data set (vx, vy, and vz)
-    for i, ax in enumerate(axes):
-        ax.plot(t, sim_runs[sim_case]['uvw_gust'][i,:], sim_runs[sim_case]['color'], label=sim_case)
-        ax.set(xlabel = 't, s', ylabel = 'v, ft/s',
-              title = xyz_string_list[i] + ' gust vs time')
-        ax.legend()
-        ax.grid(True)
+    for i, xyz in enumerate(xyz_string_list):
+      fig, ax = plt.subplots()
+      ax.plot(t, sim_runs[sim_case]['uvw_gust'][i,:], sim_runs[sim_case]['color'], label=sim_case)
+      ax.set(xlabel = 't, s', ylabel = 'v, ft/s',
+          title = f'{xyz} gust vs time ({sim_case})')
+      ax.legend()
+      ax.grid(True)
+      fig.savefig(os.path.join(plot_dir, f'gust_{xyz}_time_{sim_case}.png'), bbox_inches='tight')
+      plt.close(fig)
 
     fig, ax = plt.subplots()
     ax.plot(sim_runs[sim_case]['uvw_gust'][1,:], sim_runs[sim_case]['uvw_gust'][2,:], 'b')
-    ax.set(xlabel = 't, s', ylabel = 'v, ft/s',
-          title = 'y vs z gust velocities, ' + sim_case + ' (see commentary)')
+    ax.set(xlabel = 'y gust (ft/s)', ylabel = 'z gust (ft/s)',
+        title = f'y vs z gust velocities ({sim_case})')
     ax.grid(True)
+    fig.savefig(os.path.join(plot_dir, f'gust_yz_plane_{sim_case}.png'), bbox_inches='tight')
+    plt.close(fig)
 

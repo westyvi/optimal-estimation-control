@@ -127,6 +127,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+estimation_env/  # custom for this project
 
 # Spyder project settings
 .spyderproject

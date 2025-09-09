@@ -18,6 +18,11 @@ from matplotlib import pyplot as plt
 import csv
 import P4_classes
 import copy
+import os
+
+# create plot directory
+plot_dir = os.path.join(os.path.dirname(__file__), 'plots')
+os.makedirs(plot_dir, exist_ok=True)
 
 # Load the CSV file using numpy
 csv_data = np.genfromtxt('./fuel_data.csv', delimiter=',', dtype=None)
@@ -74,6 +79,7 @@ def runFilter(filter_object, filter_log, log_gain = False):
 # plotting function
 def plot(filter_log, filter_string):
     # Plot the posterior state estimates versus the true states for the fuel remaining.
+
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,0], c='red', label='estimated')
     ax.plot(time, fk, c='black', label='truth')
@@ -81,8 +87,10 @@ def plot(filter_log, filter_string):
           title = 'Estimated Fuel Remaining vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
-    
-    # Plot the posterior state estimates versus the true states for the flow meter bias.
+    fig.savefig(os.path.join(plot_dir, f'fuel_vs_time_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
+
+      # posterior state estimates versus the true states for the flowmeter bias.
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,1], c='red', label='estimated')
     ax.plot(time, bk, c='black', label='truth')
@@ -90,9 +98,10 @@ def plot(filter_log, filter_string):
           title = 'Estimated Flowmeter Bias vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
-    
-    # Plot the posterior state estimate errors and the ±2𝜎 from the diagonals of the steady-state
-    # posterior covariance for the fuel remaining.
+    fig.savefig(os.path.join(plot_dir, f'bias_vs_time_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
+
+      # Plot the posterior state estimate errors and the ±2𝜎 from the diagonals of the steady-state
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,0]-fk, c='red', label=filter_string)
     ax.fill_between(time, -2*np.sqrt(filter_log['P'][:,0,0]), 2*np.sqrt(filter_log['P'][:,0,0]), color='purple', alpha=0.5, label='2-sigma covariance bound')
@@ -100,9 +109,9 @@ def plot(filter_log, filter_string):
           title = 'Posterior State Estimate Errors and estimated 2-sigma bounds vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
-    
-    # Plot the posterior state estimate errors and the ±2𝜎 from the diagonals of the steady-state
-    # posterior covariance for the flow meter bias.
+    fig.savefig(os.path.join(plot_dir, f'error_vs_time_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
+
     fig, ax = plt.subplots()
     ax.plot(time, filter_log['x'][:,1]-bk, c='red', label=filter_string)
     ax.fill_between(time, -2*np.sqrt(np.abs(filter_log['P'][:,1,1])), 2*np.sqrt(np.abs(filter_log['P'][:,1,1])), color='purple', alpha=0.5, label='2-sigma covariance bound')
@@ -110,7 +119,8 @@ def plot(filter_log, filter_string):
           title = 'Posterior State Estimate Errors and estimated 2-sigma bounds vs time, ' + filter_string)
     ax.legend()
     plt.grid(True)
-    
+    fig.savefig(os.path.join(plot_dir, f'error_bias_vs_time_{filter_string}.png'), bbox_inches='tight')
+    plt.close(fig)
 
 # standard discrete-time Kalman Filter (KF)
 KF = P4_classes.KF(F, G, Q, H, R)
@@ -132,6 +142,8 @@ ax.set(xlabel = 't, s', ylabel = 'Kalman gains, cm^3',
       title = 'SSKF vs KF Kalman gains')
 ax.legend()
 plt.grid(True)
+fig.savefig(os.path.join(plot_dir, f'SSKF_vs_KF_gain.png'), bbox_inches='tight')
+plt.close(fig)
 
 # covariance intersection Kalman Filter (CI-KF)
 # bound omega <= 0.95 for search stability
@@ -150,36 +162,3 @@ for i in range(time.size-2,-1,-1):
     filters_log['FIKS']['P'][i,:,:] = P_smoothed
 plot(filters_log['FIKS'], 'FIKS')
 
-# commentary
-'''As can be seen by the plots produced, the kalman filtering framework provides multiple
-ways to estimate states via sensor fusion. As implemented, the base kalman filter struggles to 
-track the true fuel remaining and flowmeter bias. While it appears as though this is caused 
-by too low a process noise matrix, leading to too much trust in the model 
-(shown by small covariance and out of bounds errors), the SSKF child class
-performs much better with all the same equations save for the kalman gain calculation, which is constant
-and derived from the LQE DARE problem for the SSKF. This is further supported by the kalman gain plot, which 
-shows that the KF does not converge to the SSKF gains. I've checked the standard kalman filter gain calculation,
-tried different expressions, and re-coded the function but haven't found the culprit for this behavior yet. 
-However, in a normal scenario the KF should converge to the SSKF and have the advantage of being able to 
-calculate the kalman gain adaptively online, leading to a more flexible and adaptive, while very similar, 
- solution as compared to the KF. It can also be seen that the SSKF approximates the covariances 
- of the states well, with the 95% bounds on both fuel remaining and meter bias containing the errors about 
- 95 percent of the time. 
- 
- Moving on, the CI-KF can be seen to have worse performance, as it 
- struggles to fix steady state fuel remaining value with overly-small state covariances, then suddenly
- blows up in terms of covariance and erratically oscillates around the true states, seemingly 
- only chasing the measured values, discarding the prediction. This leads to very large errors, oscillations in 
- state, and covariances for most of the data window. So while the CI-KF may be useful in 
- sensor fusion of unknown correlation or in different contexts, it appears to be a poor choice for 
- fusing this data.
- 
- Finally, the FIKS does the job of smoothing the states well, as can be seen by the much smoother output 
- as compared to the SSKF data it smooths. It also entirely fixes the initial convergence period 
- the SSKF has where it is initialized with a large error and small covariance, so takes a long time to converge
- to the true states. As shown in the fuel remaining plot, the FIKS tracks the true value from time zero with much
- less oscillations. However, it appears as though this is done at the cost of much increased smoothed covariance
- estimates. The FIKS has a variances of over 100 for most of the fuel remaining estimate, while the SSKF
- variances remain under 50 for the same data. So it appears that the FIKS, while doing a good job of 
- smoothing the data and keeping the error similar (for this dataset, at least), decreases the confidence in the 
- accuracy of that data as estimated by the filter. '''

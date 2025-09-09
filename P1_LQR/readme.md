@@ -4,7 +4,7 @@
 Simulates spacecraft optimal guidance for a rendesvous operation using continuous and discrete LQR controllers (finite/infinite horizon) and the Clohessy-Wiltshire linearized equations for orbital proximity operations. Implements and compares multiple LQR designs (labeled as cases) with varying state and control cost matrices.
 
 ## Results
-![Z-time Trajectory](plots/z_time_finite horizon discrete LQR.png)
+![Z-time_Trajectory](plots/z_time_finite horizon discrete LQR.png)
 *Z trajectory for finite horizon continuous LQR: the controller drives the chaser spacecraft to the origin, centered at the target spacecraft. Higher state costs/lower control costs result in more control input and faster state convergence.*
 
 ## More Results

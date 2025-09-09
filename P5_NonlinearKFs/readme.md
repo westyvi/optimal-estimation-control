@@ -5,9 +5,11 @@ Implements Extended and Unscented Kalman Filters for state estimation of altitud
 
 ## Results
 ![Altitude Estimate (EKF)](plots/alt_EKF.png)
+
 *Altitude estimate (EKF): filter tracks true altitude throughout flight.*
 
 ![Altitude Error (EKF)](plots/alt_err_EKF.png)
+
 *Altitude error (EKF): filter has low error and accurate covariance estimate throughout flight.*
 
 ## More Results

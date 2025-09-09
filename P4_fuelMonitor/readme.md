@@ -4,8 +4,11 @@
 Implements standard and steady-state Kalman filters for estimating fuel remaining and flowmeter bias in a simulated system. Uses a linear state-space model and compares filter performance. Also implements a fixed interval kalman smoother and examins the effect on state estimates.
 
 ## Results
-![Fuel vs Time (KF)](plots/error_vs_time_SSKF.png)
-*Estimated fuel vs time (SSKF): Kalman filter tracks true fuel closely and has an accurate covariance estimate.*
+![Fuel vs Time (SSKF)](plots/fuel_vs_time_SSKF.png)
+
+![Fuel Error vs Time (SSKF)](plots/error_vs_time_SSKF.png)
+
+*Estimated fuel error vs time (SSKF): Kalman filter tracks true fuel closely and has an accurate covariance estimate.*
 
 ## More Results
 The full set of plots is already available in the `plots/` folder. You can also navigate to this directory and run `P4.py` to regenerate them if desired.

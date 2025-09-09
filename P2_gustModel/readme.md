@@ -5,6 +5,7 @@ Implements the Dryden stochastic gust model to simulate wind turbulence (light, 
 
 ## Results
 ![X Gust Velocity - Severe](plots/gust_x_time_severe.png)
+
 *X gust velocity vs time for severe turbulence: largest fluctuations are observed.*
 
 ## More Results

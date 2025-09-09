@@ -8,9 +8,11 @@ Fits pulse discharge battery data to nonlinear equivalent circuit models (1, 2, 
 
 ## Results
 ![Residuals vs SOC](plots/residuals_vs_soc.png)
+
 *Residuals vs SOC: more RC branches reduce model error.*
 
 ![Single Discharge](plots/single_period_fit.png)
+
 *Single Discharge: more RC branches produces better fit*
 
 ## More Results
